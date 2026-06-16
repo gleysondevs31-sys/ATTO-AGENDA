@@ -187,3 +187,21 @@ Credenciais demo:
 - Senha: `Demo@12345`
 
 O seed cria empresa demo, usuário owner, link público, regras de disponibilidade e um agendamento exemplo.
+
+## Erro: DATABASE_URL não configurada
+
+Login, cadastro, seed e APIs privadas dependem de PostgreSQL real. Se aparecer a tela `/setup` ou a mensagem de banco não configurado, configure na Vercel:
+
+```bash
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/atto_agenda?schema=public"
+AUTH_SECRET="gere-uma-string-longa-e-segura"
+```
+
+Depois rode as migrations no ambiente conectado ao banco:
+
+```bash
+npx prisma migrate deploy
+npm run db:seed
+```
+
+Sem `DATABASE_URL`, a landing pode abrir, mas autenticação, usuários, links e agendamentos não podem ser persistidos.
