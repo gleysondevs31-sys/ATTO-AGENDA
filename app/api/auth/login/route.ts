@@ -11,9 +11,11 @@ export async function POST(request: NextRequest) {
     if (!rateLimit(`login:${ip}`, 5, 60_000).ok) return fail('Muitas tentativas. Tente novamente em instantes.', 429);
     const payload = loginSchema.parse(await request.json());
     const user = await prisma.user.findFirst({ where: { email: payload.email.toLowerCase() }, include: { company: true } });
-    if (!user?.passwordHash || !(await verifyPassword(payload.password, user.passwordHash))) return fail('Credenciais inválidas.', 401);
-    await prisma.auditLog.create({ data: { companyId: user.companyId, actorId: user.id, action: 'auth.login', entity: 'User', entityId: user.id } });
-    setSessionCookie(signSession({ userId: user.id, companyId: user.companyId, role: user.role, email: user.email, name: user.name }));
-    return ok({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, company: { id: user.company.id, name: user.company.name } });
+    if (!user) return fail('Credenciais inválidas.', 401);
+    const userWithPassword = user as typeof user & { passwordHash?: string | null };
+    if (!userWithPassword.passwordHash || !(await verifyPassword(payload.password, userWithPassword.passwordHash))) return fail('Credenciais inválidas.', 401);
+    await prisma.auditLog.create({ data: { companyId: userWithPassword.companyId, actorId: userWithPassword.id, action: 'auth.login', entity: 'User', entityId: userWithPassword.id } });
+    setSessionCookie(signSession({ userId: userWithPassword.id, companyId: userWithPassword.companyId, role: userWithPassword.role, email: userWithPassword.email, name: userWithPassword.name }));
+    return ok({ user: { id: userWithPassword.id, name: userWithPassword.name, email: userWithPassword.email, role: userWithPassword.role }, company: { id: userWithPassword.company.id, name: userWithPassword.company.name } });
   } catch (error) { return handleError(error); }
 }
