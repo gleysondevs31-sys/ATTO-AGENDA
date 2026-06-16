@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { handleError, ok } from '@/lib/api/responses';
-import { toBookingData, writeAudit } from '@/lib/booking';
+import { toUpdateBookingData, writeAudit } from '@/lib/booking';
 import { assertBookingLinkScope, requireCompanyId } from '@/lib/tenant';
 import { updateBookingLinkSchema } from '@/lib/validation/booking-link';
 
@@ -19,7 +19,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const companyId = await requireCompanyId(request);
     await assertBookingLinkScope(params.id, companyId);
     const payload = updateBookingLinkSchema.parse(await request.json());
-    const link = await prisma.bookingLink.update({ where: { id: params.id }, data: toBookingData(payload) });
+    const link = await prisma.bookingLink.update({ where: { id: params.id }, data: toUpdateBookingData(payload) });
     await writeAudit(companyId, 'booking_link.updated', 'BookingLink', link.id, { slug: link.slug });
     return ok(link);
   } catch (error) { return handleError(error); }

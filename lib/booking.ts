@@ -1,22 +1,31 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db/prisma';
 import { cleanOptional, cleanText } from '@/lib/security/sanitize';
+import type { z } from 'zod';
+import type { createBookingLinkSchema, updateBookingLinkSchema } from '@/lib/validation/booking-link';
 
-export type BookingInput = {
-  userId?: string;
-  slug?: string;
-  name?: string;
-  description?: string;
-  imageUrl?: string;
-  address?: string;
-  duration?: number;
-  dailyLimit?: number;
-  availableDays?: number[];
-  availableSlots?: string[];
-  expiresAt?: string;
-  isActive?: boolean;
-};
+type CreateBookingLinkInput = z.infer<typeof createBookingLinkSchema>;
+type UpdateBookingLinkInput = z.infer<typeof updateBookingLinkSchema>;
 
-export function toBookingData(input: BookingInput) {
+export function toCreateBookingData(input: CreateBookingLinkInput, companyId: string): Prisma.BookingLinkUncheckedCreateInput {
+  return {
+    companyId,
+    userId: input.userId,
+    slug: cleanText(input.slug.toLowerCase(), 80),
+    name: cleanText(input.name, 120),
+    description: cleanOptional(input.description, 500),
+    imageUrl: input.imageUrl,
+    address: cleanText(input.address, 240),
+    duration: input.duration,
+    dailyLimit: input.dailyLimit,
+    availableDays: input.availableDays,
+    availableSlots: input.availableSlots,
+    expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+    isActive: input.isActive ?? true,
+  };
+}
+
+export function toUpdateBookingData(input: UpdateBookingLinkInput): Prisma.BookingLinkUncheckedUpdateInput {
   return {
     ...(input.userId !== undefined ? { userId: input.userId } : {}),
     ...(input.slug !== undefined ? { slug: cleanText(input.slug.toLowerCase(), 80) } : {}),
@@ -33,8 +42,8 @@ export function toBookingData(input: BookingInput) {
   };
 }
 
-export async function writeAudit(companyId: string, action: string, entity: string, entityId: string, metadata?: unknown) {
-  await prisma.auditLog.create({ data: { companyId, action, entity, entityId, metadata: metadata as object } });
+export async function writeAudit(companyId: string, action: string, entity: string, entityId: string, metadata?: Prisma.InputJsonValue) {
+  await prisma.auditLog.create({ data: { companyId, action, entity, entityId, metadata } });
 }
 
 export async function getPublicBookingLink(slug: string) {
