@@ -1,3 +1,3 @@
-import { Logo } from '@/components/logo';
 import { AuthForm } from '@/components/admin/auth-forms';
-export default function RegisterPage(){return <main className="grid min-h-screen place-items-center bg-zinc-50 px-5 dark:bg-zinc-950"><div className="w-full"><div className="mb-8 flex justify-center"><Logo/></div><AuthForm mode="register"/><p className="mt-5 text-center text-sm"><a href="/login">Já tenho conta</a></p></div></main>}
+import { AuthLayout } from '@/components/admin/auth-layout';
+export default function RegisterPage(){return <AuthLayout eyebrow="Cadastro inicial" title="Crie sua empresa e comece a receber visitas." description="O cadastro cria a Company, o primeiro usuário owner e as configurações visuais padrão para publicar o primeiro link."><AuthForm mode="register"/></AuthLayout>}
