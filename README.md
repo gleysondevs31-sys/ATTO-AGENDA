@@ -144,3 +144,46 @@ Cada empresa e cada link podem configurar logo, banner, foto do consultor, cores
 Uploads aceitam apenas PNG, JPG, JPEG e WEBP até 5MB. A rota `/api/upload` já valida tipo/tamanho e retorna uma URL preparada para adaptação com Vercel Blob, S3 ou storage compatível.
 
 A página pública `/:slug` aplica dinamicamente logo, banner, foto, cores, layout, textos, endereço e instruções, com fallback quando imagens não existem e sem aceitar HTML bruto nos textos.
+
+## Fluxo operacional completo
+
+### Disponibilidade
+
+A disponibilidade é configurada em `/booking-links/[id]/availability` com regras por dia da semana, horário de início/fim, duração, pausa de almoço e bloqueios manuais. O endpoint público abaixo calcula horários livres em tempo real:
+
+```bash
+GET /api/public/booking-links/visita-metrocasa/slots?date=2026-06-18
+```
+
+O cálculo remove agendamentos ocupados, bloqueios manuais, horários fora da janela mínima/máxima e respeita limite diário.
+
+### Agendamento público
+
+A página `/:slug` carrega slots dinamicamente, mostra loading, estado sem horários, confirma o agendamento e exibe protocolo com botão de copiar e link de WhatsApp.
+
+### Cancelamento e reagendamento público
+
+```bash
+/a/AG-2026-584712/cancel
+/a/AG-2026-584712/reschedule
+```
+
+O cliente informa o telefone usado no agendamento. O sistema valida telefone, janela mínima e permissões públicas configuradas no link.
+
+### Notificações
+
+A tabela `NotificationLog` registra mensagens pendentes para WhatsApp, E-mail ou SMS. Nesta etapa a plataforma gera a mensagem de confirmação, botão de cópia e link de WhatsApp, deixando a integração paga para um adaptador futuro.
+
+### Demo seed
+
+```bash
+npm run db:generate
+npm run db:seed
+```
+
+Credenciais demo:
+
+- E-mail: `owner@attoagenda.com.br`
+- Senha: `Demo@12345`
+
+O seed cria empresa demo, usuário owner, link público, regras de disponibilidade e um agendamento exemplo.

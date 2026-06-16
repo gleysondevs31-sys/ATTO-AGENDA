@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db/prisma';
 import { cleanOptional, cleanText } from '@/lib/security/sanitize';
 import { writeAudit } from '@/lib/booking';
+import { getAvailableSlots } from '@/lib/availability';
+import { confirmationMessage } from '@/lib/notifications';
 import type { z } from 'zod';
 import type { createAppointmentSchema, updateAppointmentSchema } from '@/lib/validation/appointment';
 
@@ -52,17 +54,25 @@ async function validateSlot(tx: Prisma.TransactionClient, bookingLinkId: string,
 export async function createAppointment(input: CreateAppointment, companyId?: string) {
   return prisma.$transaction(async (tx) => {
     const startsAt = new Date(input.startsAt);
+    if (startsAt <= new Date()) throw new Error('Escolha uma data futura.');
     const link = input.bookingLinkId
       ? await tx.bookingLink.findFirst({ where: { id: input.bookingLinkId, ...(companyId ? { companyId } : {}) } })
       : await tx.bookingLink.findUnique({ where: { slug: input.slug! } });
     if (!link || (companyId && link.companyId !== companyId)) throw new Error('Link de agendamento não encontrado.');
-    await validateSlot(tx, link.id, startsAt);
-    const client = await tx.client.create({ data: { companyId: link.companyId, fullName: cleanText(input.client.fullName, 160), phone: cleanText(input.client.phone, 30), email: cleanOptional(input.client.email, 160), cpf: cleanOptional(input.client.cpf, 14) } });
+    const dateKey = startsAt.toISOString().slice(0, 10);
+    const slotKey = startsAt.toISOString().slice(11, 16);
+    const availability = await getAvailableSlots(link.slug, dateKey);
+    if (!availability.slots.includes(slotKey)) throw new Error('Horário indisponível.');
+    if (!/^\+?[0-9() .-]{8,30}$/.test(input.client.phone)) throw new Error('Telefone inválido.');
+    const client = await tx.client.upsert({ where: { id: (await tx.client.findFirst({ where: { companyId: link.companyId, phone: cleanText(input.client.phone, 30) }, select: { id: true } }))?.id ?? '__new__' }, update: { fullName: cleanText(input.client.fullName, 160), email: cleanOptional(input.client.email, 160), cpf: cleanOptional(input.client.cpf, 14) }, create: { companyId: link.companyId, fullName: cleanText(input.client.fullName, 160), phone: cleanText(input.client.phone, 30), email: cleanOptional(input.client.email, 160), cpf: cleanOptional(input.client.cpf, 14) } });
     const appointment = await tx.appointment.create({
-      data: { companyId: link.companyId, bookingLinkId: link.id, userId: link.userId, clientId: client.id, protocol: generateProtocol(), startsAt, endsAt: addMinutes(startsAt, link.duration), status: 'scheduled', notes: cleanOptional(input.notes, 600) },
+      data: { companyId: link.companyId, bookingLinkId: link.id, userId: link.userId, clientId: client.id, protocol: generateProtocol(), startsAt, endsAt: addMinutes(startsAt, link.durationMinutes ?? link.duration), status: 'scheduled', notes: cleanOptional(input.notes, 600) },
       include: { client: true, bookingLink: true },
     });
-    await tx.auditLog.create({ data: { companyId: link.companyId, action: 'appointment.created', entity: 'Appointment', entityId: appointment.id, metadata: { protocol: appointment.protocol } } });
+    await tx.auditLog.create({ data: { companyId: link.companyId, action: 'appointment.created', entity: 'Appointment', entityId: appointment.id, entityType: 'Appointment', metadata: { protocol: appointment.protocol } } });
+    const company = await tx.company.findUnique({ where: { id: link.companyId } });
+    const user = link.userId ? await tx.user.findUnique({ where: { id: link.userId } }) : null;
+    await tx.notificationLog.create({ data: { companyId: link.companyId, appointmentId: appointment.id, channel: 'whatsapp', type: 'confirmation', status: 'pending', payload: { message: confirmationMessage({ company: company?.name ?? 'ATTO AGENDA', consultant: user?.name, date: startsAt, address: link.address, protocol: appointment.protocol }) } } });
     return appointment;
   });
 }
@@ -74,7 +84,7 @@ export async function updateAppointment(id: string, companyId: string, input: Up
     const startsAt = input.startsAt ? new Date(input.startsAt) : current.startsAt;
     if (input.startsAt) await validateSlot(tx, current.bookingLinkId, startsAt, id);
     const status = input.startsAt && !input.status ? 'rescheduled' : input.status;
-    const updated = await tx.appointment.update({ where: { id }, data: { ...(input.startsAt ? { startsAt, endsAt: addMinutes(startsAt, current.bookingLink.duration) } : {}), ...(status ? { status } : {}), ...(input.notes !== undefined ? { notes: cleanOptional(input.notes, 600) } : {}) }, include: { client: true, bookingLink: true } });
+    const updated = await tx.appointment.update({ where: { id }, data: { ...(input.startsAt ? { startsAt, endsAt: addMinutes(startsAt, current.bookingLink.durationMinutes ?? current.bookingLink.duration) } : {}), ...(status ? { status } : {}), ...(input.notes !== undefined ? { notes: cleanOptional(input.notes, 600) } : {}) }, include: { client: true, bookingLink: true } });
     await tx.auditLog.create({ data: { companyId, action: status === 'cancelled' ? 'appointment.cancelled' : 'appointment.updated', entity: 'Appointment', entityId: id, metadata: { status: updated.status } } });
     return updated;
   });

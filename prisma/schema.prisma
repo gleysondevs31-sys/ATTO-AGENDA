@@ -41,7 +41,10 @@ model Company {
   users        User[]
   bookingLinks BookingLink[]
   availability Availability[]
+  availabilityRules AvailabilityRule[]
+  availabilityExceptions AvailabilityException[]
   appointments Appointment[]
+  notificationLogs NotificationLog[]
   clients      Client[]
   auditLogs    AuditLog[]
 }
@@ -59,6 +62,8 @@ model User {
   updatedAt    DateTime      @updatedAt
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bookingLinks BookingLink[]
+  availabilityRules AvailabilityRule[]
+  availabilityExceptions AvailabilityException[]
   appointments Appointment[]
 
   @@unique([companyId, email])
@@ -94,6 +99,11 @@ model BookingLink {
   layout         String?       @default("side")
   welcomeText    String?
   confirmationText String?
+  minScheduleNoticeMinutes Int? @default(0)
+  maxScheduleDays Int? @default(60)
+  allowPublicCancellation Boolean @default(true)
+  allowPublicReschedule Boolean @default(true)
+  minCancelRescheduleMinutes Int? @default(180)
   dailyLimit     Int
   availableDays  Int[]
   availableSlots String[]
@@ -104,6 +114,8 @@ model BookingLink {
   company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   availability   Availability[]
+  availabilityRules AvailabilityRule[]
+  availabilityExceptions AvailabilityException[]
   appointments   Appointment[]
 
   @@index([companyId])
@@ -158,6 +170,7 @@ model Appointment {
   bookingLink   BookingLink       @relation(fields: [bookingLinkId], references: [id], onDelete: Cascade)
   client        Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   user          User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  notificationLogs NotificationLog[]
 
   @@index([companyId, startsAt])
   @@index([companyId, bookingLinkId, startsAt])
@@ -167,12 +180,93 @@ model AuditLog {
   id        String   @id @default(cuid())
   companyId String
   actorId   String?
+  userId    String?
   action    String
   entity    String
+  entityType String?
   entityId  String
   metadata  Json?
   createdAt DateTime @default(now())
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, entity, entityId])
+}
+
+
+model AvailabilityRule {
+  id            String      @id @default(cuid())
+  companyId     String
+  userId        String?
+  bookingLinkId String
+  weekday       Int
+  startTime     String
+  endTime       String
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  bookingLink   BookingLink @relation(fields: [bookingLinkId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, bookingLinkId, weekday])
+}
+
+enum AvailabilityExceptionType {
+  blocked
+  extra
+}
+
+model AvailabilityException {
+  id            String                    @id @default(cuid())
+  companyId     String
+  userId        String?
+  bookingLinkId String
+  date          DateTime
+  startTime     String
+  endTime       String
+  type          AvailabilityExceptionType
+  reason        String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  company       Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user          User?                     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  bookingLink   BookingLink               @relation(fields: [bookingLinkId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, bookingLinkId, date])
+}
+
+enum NotificationChannel {
+  whatsapp
+  email
+  sms
+}
+
+enum NotificationType {
+  confirmation
+  reminder
+  cancellation
+  reschedule
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+}
+
+model NotificationLog {
+  id            String             @id @default(cuid())
+  companyId     String
+  appointmentId String
+  channel       NotificationChannel
+  type          NotificationType
+  status        NotificationStatus @default(pending)
+  payload       Json
+  error         String?
+  createdAt     DateTime           @default(now())
+  sentAt        DateTime?
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  appointment   Appointment        @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, appointmentId])
 }
