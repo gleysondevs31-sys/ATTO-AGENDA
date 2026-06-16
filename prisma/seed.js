@@ -10,7 +10,7 @@ async function main() {
   const user = await prisma.user.upsert({
     where: { companyId_email: { companyId: company.id, email: 'connor@metrocasa.com.br' } },
     update: {},
-    create: { companyId: company.id, name: 'Connor Alves', email: 'connor@metrocasa.com.br', role: 'consultant', title: 'Consultor comercial' },
+    create: { companyId: company.id, name: 'Connor Alves', email: 'connor@metrocasa.com.br', role: 'owner', title: 'Consultor comercial' },
   });
   await prisma.bookingLink.upsert({
     where: { slug: 'visita-metrocasa' },
@@ -21,6 +21,8 @@ async function main() {
       slug: 'visita-metrocasa',
       name: 'Visita ao decorado Metrocasa',
       description: 'Agende sua visita comercial com confirmação automática.',
+      welcomeText: 'Escolha o melhor horário para visitar o decorado.',
+      confirmationText: 'Sua visita foi confirmada com sucesso.',
       address: 'Av. Paulista, 1000 — São Paulo, SP',
       duration: 30,
       dailyLimit: 24,

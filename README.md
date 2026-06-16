@@ -107,3 +107,40 @@ npm run db:generate
 npm run db:migrate
 npm run db:seed
 ```
+
+## Autenticação e permissões
+
+A autenticação usa sessão HTTP-only própria compatível com Next.js 14. Configure um segredo forte:
+
+```bash
+AUTH_SECRET="uma-string-longa-e-aleatoria"
+# NEXTAUTH_SECRET também é aceito como fallback
+```
+
+Fluxos disponíveis:
+
+- `/login`: entrar.
+- `/register`: cria a primeira empresa, configurações visuais padrão e usuário `owner`.
+- `/forgot-password`: resposta neutra para evitar enumeração de e-mails.
+- `/profile`: perfil do usuário autenticado.
+- `/users`: usuários da empresa.
+
+Rotas privadas protegidas por middleware: `/dashboard`, `/booking-links`, `/appointments`, `/settings`, `/users` e `/profile`. As APIs privadas validam sessão, `userId`, `companyId`, `role` e permissão da ação.
+
+Papéis:
+
+- `owner`: acesso total.
+- `admin`: gerencia usuários, links, agenda e configurações.
+- `manager`: visualiza relatórios e agenda da equipe.
+- `consultant`: gerencia apenas fluxo próprio planejado.
+
+## Personalização visual
+
+Cada empresa e cada link podem configurar logo, banner, foto do consultor, cores, tema, layout, textos e redes sociais. Use:
+
+- `/settings/appearance` para configuração global da empresa.
+- `/booking-links/[id]/appearance` para editar e visualizar o preview de um link específico.
+
+Uploads aceitam apenas PNG, JPG, JPEG e WEBP até 5MB. A rota `/api/upload` já valida tipo/tamanho e retorna uma URL preparada para adaptação com Vercel Blob, S3 ou storage compatível.
+
+A página pública `/:slug` aplica dinamicamente logo, banner, foto, cores, layout, textos, endereço e instruções, com fallback quando imagens não existem e sem aceitar HTML bruto nos textos.
