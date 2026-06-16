@@ -1,5 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL não configurada. Defina uma URL PostgreSQL antes de rodar npm run db:seed.');
+  process.exit(1);
+}
 const prisma = new PrismaClient();
 
 async function main() {
