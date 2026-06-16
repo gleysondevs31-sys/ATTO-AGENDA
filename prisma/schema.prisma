@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  manager
+  supervisor
+  consultant
+}
+
+enum AppointmentStatus {
+  scheduled
+  confirmed
+  rescheduled
+  cancelled
+  attended
+  no_show
+  converted
+}
+
+model Company {
+  id           String        @id @default(cuid())
+  name         String
+  slug         String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  users        User[]
+  bookingLinks BookingLink[]
+  availability Availability[]
+  appointments Appointment[]
+  clients      Client[]
+  auditLogs    AuditLog[]
+}
+
+model User {
+  id           String        @id @default(cuid())
+  companyId    String
+  name         String
+  email        String
+  role         UserRole      @default(consultant)
+  title        String?
+  avatarUrl    String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bookingLinks BookingLink[]
+  appointments Appointment[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+}
+
+model BookingLink {
+  id             String        @id @default(cuid())
+  companyId      String
+  userId         String?
+  slug           String        @unique
+  name           String
+  description    String?
+  imageUrl       String?
+  address        String
+  duration       Int
+  dailyLimit     Int
+  availableDays  Int[]
+  availableSlots String[]
+  expiresAt      DateTime?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  availability   Availability[]
+  appointments   Appointment[]
+
+  @@index([companyId])
+  @@index([slug])
+}
+
+model Availability {
+  id            String      @id @default(cuid())
+  companyId     String
+  bookingLinkId String
+  dayOfWeek     Int
+  startTime     String
+  endTime       String
+  isBlocked     Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bookingLink   BookingLink @relation(fields: [bookingLinkId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, bookingLinkId])
+}
+
+model Client {
+  id           String        @id @default(cuid())
+  companyId    String
+  fullName     String
+  phone        String
+  email        String?
+  cpf          String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@index([companyId])
+}
+
+model Appointment {
+  id            String            @id @default(cuid())
+  companyId     String
+  bookingLinkId String
+  clientId      String
+  userId        String?
+  protocol      String            @unique
+  startsAt      DateTime
+  endsAt        DateTime
+  status        AppointmentStatus @default(scheduled)
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bookingLink   BookingLink       @relation(fields: [bookingLinkId], references: [id], onDelete: Cascade)
+  client        Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user          User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, startsAt])
+  @@index([companyId, bookingLinkId, startsAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  companyId String
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entity, entityId])
+}
