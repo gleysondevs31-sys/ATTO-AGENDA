@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export default async function BookingPage({ params }: { params: { slug: string } }) {
   const record = await getPublicBookingLink(params.slug).catch(() => null);
   if (!record) notFound();
-  const link = publicLinkDto(record);
+  const link = await publicLinkDto(record);
   const appearance = link.appearance;
   const consultantName = appearance.title ?? link.consultant?.name ?? link.company.name;
   const isCentered = appearance.layout === 'centered';

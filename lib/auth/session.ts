@@ -2,8 +2,8 @@ import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import type { UserRole } from '@prisma/client';
-import { prisma } from '@/lib/db/prisma';
+import type { UserRole } from '@/lib/auth/permissions';
+import { listUsers } from '@/lib/storage';
 import { can, type Action } from '@/lib/auth/permissions';
 
 const cookieName = 'atto_session';
@@ -55,7 +55,7 @@ export function getSessionFromRequest(request: NextRequest) {
 export async function requireSession(request: NextRequest, action?: Action) {
   const session = getSessionFromRequest(request);
   if (!session) throw new Error('Não autenticado.');
-  const user = await prisma.user.findFirst({ where: { id: session.userId, companyId: session.companyId }, select: { id: true, companyId: true, role: true, email: true, name: true } });
+  const user = (await listUsers(session.companyId)).find((item) => item.id === session.userId);
   if (!user) throw new Error('Sessão inválida.');
   if (action && !can(user.role, action)) throw new Error('Permissão insuficiente.');
   return { userId: user.id, companyId: user.companyId, role: user.role, email: user.email, name: user.name } satisfies SessionUser;

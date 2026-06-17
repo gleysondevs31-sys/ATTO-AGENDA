@@ -1,25 +1,2 @@
-import { prisma } from '@/lib/db/prisma';
-
-export async function getDashboard(companyId?: string | null) {
-  if (!companyId) return null;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-  const afterTomorrow = new Date(today); afterTomorrow.setDate(afterTomorrow.getDate() + 2);
-  const weekEnd = new Date(today); weekEnd.setDate(weekEnd.getDate() + 7);
-  const [total, todayCount, tomorrowCount, weekCount, cancellations, attended, noShow, converted, relevant, upcoming, grouped, topLinks, topConsultants] = await Promise.all([
-    prisma.appointment.count({ where: { companyId } }),
-    prisma.appointment.count({ where: { companyId, startsAt: { gte: today, lt: tomorrow } } }),
-    prisma.appointment.count({ where: { companyId, startsAt: { gte: tomorrow, lt: afterTomorrow } } }),
-    prisma.appointment.count({ where: { companyId, startsAt: { gte: today, lt: weekEnd } } }),
-    prisma.appointment.count({ where: { companyId, status: 'cancelled' } }),
-    prisma.appointment.count({ where: { companyId, status: 'attended' } }),
-    prisma.appointment.count({ where: { companyId, status: 'no_show' } }),
-    prisma.appointment.count({ where: { companyId, status: 'converted' } }),
-    prisma.appointment.count({ where: { companyId, status: { in: ['attended', 'no_show'] } } }),
-    prisma.appointment.findMany({ where: { companyId, startsAt: { gte: new Date() }, status: { not: 'cancelled' } }, include: { client: true, bookingLink: true, user: true }, orderBy: { startsAt: 'asc' }, take: 6 }),
-    prisma.appointment.groupBy({ by: ['status'], where: { companyId }, _count: { status: true } }),
-    prisma.appointment.groupBy({ by: ['bookingLinkId'], where: { companyId }, _count: { bookingLinkId: true }, orderBy: { _count: { bookingLinkId: 'desc' } }, take: 5 }),
-    prisma.appointment.groupBy({ by: ['userId'], where: { companyId, userId: { not: null } }, _count: { userId: true }, orderBy: { _count: { userId: 'desc' } }, take: 5 }),
-  ]);
-  return { total, todayCount, tomorrowCount, weekCount, cancellations, noShow, converted, conversionRate: total ? Math.round((converted / total) * 1000) / 10 : 0, attendanceRate: relevant ? Math.round((attended / relevant) * 1000) / 10 : 0, upcoming, byStatus: grouped.map((item) => ({ status: item.status, count: item._count.status })), topLinks, topConsultants };
-}
+import { listAppointments } from '@/lib/storage';
+export async function getDashboard(companyId?: string | null) { if(!companyId) return null; const items=await listAppointments(companyId); const today=new Date().toISOString().slice(0,10); const week=new Date(); week.setUTCDate(week.getUTCDate()+7); const upcoming=items.filter((a:any)=>a.status!=='cancelled').slice(0,6).map((a:any)=>({startsAt:new Date(`${a.date}T${a.startTime}:00.000Z`),client:{fullName:a.clientName},bookingLink:{name:a.source},user:{name:a.consultantId??'Equipe'},status:a.status})); const attended=items.filter((a:any)=>a.status==='attended').length; const noShow=items.filter((a:any)=>a.status==='no_show').length; const converted=items.filter((a:any)=>a.status==='converted').length; return { total:items.length, todayCount:items.filter((a:any)=>a.date===today).length, tomorrowCount:0, weekCount:items.filter((a:any)=>a.date<=week.toISOString().slice(0,10)).length, cancellations:items.filter((a:any)=>a.status==='cancelled').length, noShow, converted, conversionRate:items.length?Math.round(converted/items.length*1000)/10:0, attendanceRate:(attended+noShow)?Math.round(attended/(attended+noShow)*1000)/10:0, upcoming, byStatus:Object.entries(items.reduce((acc:any,a:any)=>{acc[a.status]=(acc[a.status]??0)+1; return acc;},{})).map(([status,count])=>({status,count})) }; }

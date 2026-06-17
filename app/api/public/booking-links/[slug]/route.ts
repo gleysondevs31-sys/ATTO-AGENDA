@@ -6,6 +6,6 @@ export async function GET(_: NextRequest, { params }: { params: { slug: string }
   try {
     const link = await getPublicBookingLink(params.slug);
     if (!link) return fail('Link público não encontrado, inativo ou expirado.', 404);
-    return ok(publicLinkDto(link));
+    return ok(await publicLinkDto(link));
   } catch (error) { return handleError(error); }
 }

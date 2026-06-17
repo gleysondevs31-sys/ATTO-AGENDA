@@ -14,6 +14,6 @@ export async function POST(request: NextRequest) {
     const appointment = await createAppointment(payload);
     const companyName = appointment.bookingLink.name;
     const message = confirmationMessage({ company: companyName, date: appointment.startsAt, address: appointment.bookingLink.address, protocol: appointment.protocol });
-    return ok({ id: appointment.id, protocol: appointment.protocol, status: appointment.status, data: appointment.startsAt.toISOString().slice(0, 10), horario: appointment.startsAt.toISOString().slice(11, 16), endereco: appointment.bookingLink.address, empresa: companyName, consultor: null, mensagem: message, startsAt: appointment.startsAt, endsAt: appointment.endsAt }, { status: 201 });
+    return ok({ id: appointment.id, protocol: appointment.protocol, status: appointment.status, data: new Date(appointment.startsAt).toISOString().slice(0, 10), horario: new Date(appointment.startsAt).toISOString().slice(11, 16), endereco: appointment.bookingLink.address, empresa: companyName, consultor: null, mensagem: message, startsAt: appointment.startsAt, endsAt: appointment.endsAt }, { status: 201 });
   } catch (error) { return handleError(error); }
 }
