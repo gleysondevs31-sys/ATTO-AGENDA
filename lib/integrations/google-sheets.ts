@@ -1,5 +1,5 @@
 import 'server-only';
-import jwt from 'jsonwebtoken';
+import { SignJWT, importPKCS8 } from 'jose';
 import { generateId } from '@/lib/json-db';
 
 export const googleSheetsConfigError = 'Google Sheets não configurado. Configure GOOGLE_SHEETS_SPREADSHEET_ID, GOOGLE_SHEETS_CLIENT_EMAIL e GOOGLE_SHEETS_PRIVATE_KEY na Vercel.';
@@ -29,7 +29,14 @@ async function token() {
   const email = process.env.GOOGLE_SHEETS_CLIENT_EMAIL!;
   const key = process.env.GOOGLE_SHEETS_PRIVATE_KEY!.replace(/\\n/g, '\n');
   const now = Math.floor(Date.now() / 1000);
-  const assertion = jwt.sign({ iss: email, scope: 'https://www.googleapis.com/auth/spreadsheets', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }, key, { algorithm: 'RS256' });
+  const privateKey = await importPKCS8(key, 'RS256');
+  const assertion = await new SignJWT({ scope: 'https://www.googleapis.com/auth/spreadsheets' })
+    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+    .setIssuer(email)
+    .setAudience('https://oauth2.googleapis.com/token')
+    .setIssuedAt(now)
+    .setExpirationTime(now + 3600)
+    .sign(privateKey);
   const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }) });
   if (!res.ok) throw new Error('Falha ao autenticar Google Sheets. Confira a Service Account e a private key.');
   return (await res.json()).access_token as string;

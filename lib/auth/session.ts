@@ -1,18 +1,23 @@
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { SignJWT, jwtVerify } from 'jose';
 import type { UserRole } from '@/lib/auth/permissions';
-import { listUsers } from '@/lib/storage';
 import { can, type Action } from '@/lib/auth/permissions';
+import { listUsers } from '@/lib/storage';
 
 const cookieName = 'atto_session';
 const defaultSecret = 'dev-only-change-me';
+const encoder = new TextEncoder();
 
 export type SessionUser = { userId: string; companyId: string; role: UserRole; email: string; name: string };
 
-function secret() {
-  return process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? defaultSecret;
+function secretKey() {
+  return encoder.encode(process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? defaultSecret);
+}
+
+function isSessionUser(payload: Record<string, unknown>): payload is SessionUser {
+  return typeof payload.userId === 'string' && typeof payload.companyId === 'string' && typeof payload.email === 'string' && typeof payload.name === 'string' && typeof payload.role === 'string';
 }
 
 export async function hashPassword(password: string) {
@@ -23,14 +28,19 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
-export function signSession(user: SessionUser) {
-  return jwt.sign(user, secret(), { expiresIn: '7d' });
+export async function signSession(user: SessionUser) {
+  return new SignJWT({ ...user })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(secretKey());
 }
 
-export function verifySessionToken(token?: string) {
+export async function verifySessionToken(token?: string) {
   if (!token) return null;
   try {
-    return jwt.verify(token, secret()) as SessionUser;
+    const { payload } = await jwtVerify(token, secretKey());
+    return isSessionUser(payload) ? payload : null;
   } catch {
     return null;
   }
@@ -44,16 +54,16 @@ export function clearSessionCookie() {
   cookies().delete(cookieName);
 }
 
-export function getSessionFromCookies() {
+export async function getSessionFromCookies() {
   return verifySessionToken(cookies().get(cookieName)?.value);
 }
 
-export function getSessionFromRequest(request: NextRequest) {
+export async function getSessionFromRequest(request: NextRequest) {
   return verifySessionToken(request.cookies.get(cookieName)?.value);
 }
 
 export async function requireSession(request: NextRequest, action?: Action) {
-  const session = getSessionFromRequest(request);
+  const session = await getSessionFromRequest(request);
   if (!session) throw new Error('Não autenticado.');
   const user = (await listUsers(session.companyId)).find((item) => item.id === session.userId);
   if (!user) throw new Error('Sessão inválida.');
