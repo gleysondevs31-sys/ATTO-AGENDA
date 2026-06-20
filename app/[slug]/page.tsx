@@ -9,7 +9,7 @@ import { getPublicBookingLink, publicLinkDto } from '@/lib/booking';
 export const dynamic = 'force-dynamic';
 
 export default async function BookingPage({ params }: { params: { slug: string } }) {
-  const record = await getPublicBookingLink(params.slug).catch(() => null);
+  const record = await getPublicBookingLink(params.slug);
   if (!record) notFound();
   const link = await publicLinkDto(record);
   const appearance = link.appearance;

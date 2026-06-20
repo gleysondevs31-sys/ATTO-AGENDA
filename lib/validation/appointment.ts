@@ -13,7 +13,7 @@ export const createAppointmentSchema = z.object({
     cpf: z.string().min(11).max(14).optional(),
   }),
   notes: z.string().max(600).optional(),
-}).refine((data) => data.bookingLinkId || data.slug, 'Informe bookingLinkId ou slug.');
+}).refine((data: { bookingLinkId?: string; slug?: string }) => data.bookingLinkId || data.slug, 'Informe bookingLinkId ou slug.');
 
 export const updateAppointmentSchema = z.object({
   startsAt: z.string().datetime().optional(),
