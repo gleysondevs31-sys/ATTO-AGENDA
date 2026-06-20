@@ -1,0 +1,8 @@
+import { NextRequest } from 'next/server';
+import { handleError, ok } from '@/lib/api/responses';
+import { requireSession } from '@/lib/auth/session';
+import { assertBookingLinkScope } from '@/lib/tenant';
+import { saveAvailabilitySchema } from '@/lib/validation/availability';
+import { createAuditLog, createAvailabilityException, createAvailabilityRule, listAvailabilityExceptions, listAvailabilityRules } from '@/lib/storage';
+export async function GET(request: NextRequest,{params}:{params:{id:string}}){try{const {companyId}=await requireSession(request,'manage_links'); await assertBookingLinkScope(params.id,companyId); return ok({rules:await listAvailabilityRules(params.id),exceptions:await listAvailabilityExceptions(params.id)});}catch(error){return handleError(error)}}
+export async function POST(request: NextRequest,{params}:{params:{id:string}}){try{const {companyId,userId}=await requireSession(request,'manage_links'); await assertBookingLinkScope(params.id,companyId); const payload=saveAvailabilitySchema.parse(await request.json()); await Promise.all(payload.rules.map((rule: { weekday: number; startTime: string; endTime: string })=>createAvailabilityRule({companyId,userId,bookingLinkId:params.id,...rule,isActive:true}))); await Promise.all((payload.exceptions??[]).map((exception: { date: string; startTime: string; endTime: string; type: string; reason?: string })=>createAvailabilityException({companyId,userId,bookingLinkId:params.id,...exception}))); await createAuditLog({companyId,userId,entityType:'BookingLink',entityId:params.id,action:'availability.updated'}); return ok({success:true,message:'Disponibilidade salva.'});}catch(error){return handleError(error)}}

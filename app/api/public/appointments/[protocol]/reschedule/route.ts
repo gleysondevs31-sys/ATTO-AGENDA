@@ -1,0 +1,6 @@
+import { NextRequest } from 'next/server';
+import { handleError, ok, fail } from '@/lib/api/responses';
+import { updateAppointment as updateFlow } from '@/lib/appointments';
+import { cleanText } from '@/lib/security/sanitize';
+import { createAuditLog, createNotificationLog, findAppointmentByProtocol } from '@/lib/storage';
+export async function POST(request: NextRequest,{params}:{params:{protocol:string}}){try{const body=request.headers.get('content-type')?.includes('application/json')?await request.json():Object.fromEntries((await request.formData()).entries()); const appointment=await findAppointmentByProtocol(params.protocol); const phone=cleanText(String(body.phone??''),30); if(!appointment||appointment.clientPhone!==phone) return fail('Dados não conferem.',404); const updated=await updateFlow(params.protocol, appointment.companyId, { startsAt: String(body.startsAt) }); await createAuditLog({companyId:appointment.companyId,entityType:'Appointment',entityId:appointment.id,action:'appointment.public_rescheduled'}); await createNotificationLog({companyId:appointment.companyId,appointmentId:appointment.id,channel:'whatsapp',type:'reschedule',status:'pending',payload:{protocol:params.protocol}}); return ok({protocol:updated?.protocol,status:updated?.status,startsAt:updated?.startsAt});}catch(error){return handleError(error)}}
